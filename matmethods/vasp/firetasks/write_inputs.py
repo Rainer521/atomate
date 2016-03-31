@@ -201,3 +201,33 @@ class WriteVaspNSCFFromPrev(FireTaskBase):
             nbands_factor=self.get("nbands_factor", 1.2),
             preserve_magmom=(self.get("preserve_magmom"), True),
             preserve_old_incar=self.get("preserve_old_incar", False))
+
+@explicit_serialize
+class WriteVaspDeformedFromPrev(FireTaskBase):
+    """
+    Writes input files for a deformed structure. Assumes that output files 
+    from the original structural optimization can be accessed.
+
+    Required params:
+        deformation
+
+    Optional params:
+        (documentation for all optional params can be found in
+        NonSCFVaspInputSet.write_input_from_prevrun)
+    """
+
+    optional_params = ["config_dict_override", "reciprocal_density",
+                       "prev_dir", "mode", "magmom_cutoff",
+                       "nbands_factor", "preserve_magmom",
+                       "preserve_old_incar"]
+
+    def run_task(self, fw_spec):
+        DeformedVaspInputSet.write_input_from_prevrun(
+            config_dict_override=self.get("config_dict_override"),
+            reciprocal_density=self.get("reciprocal_density"),
+            prev_dir=self.get("prev_dir"),
+            mode=self.get("mode", "uniform"),
+            magmom_cutoff=self.get("magmom_cutoff", 0.1),
+            nbands_factor=self.get("nbands_factor", 1.2),
+            preserve_magmom=(self.get("preserve_magmom"), True),
+            preserve_old_incar=self.get("preserve_old_incar", False))
