@@ -235,6 +235,7 @@ class TransmuterFW(Firework):
             copy_vasp_outputs (bool): Whether to copy outputs from previous run. Defaults to True.
             db_file (string): Path to file specifying db credentials.
             parents (Firework): Parents of this particular Firework. FW or list of FWS.
+            vasp_input_params (dict): input_parameters for the specified vasp_input_set
             \*\*kwargs: Other kwargs that are passed to Firework.__init__.
         """
         t = []

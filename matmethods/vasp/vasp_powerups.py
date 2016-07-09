@@ -308,3 +308,17 @@ def modify_task_docs(original_wf, update_dict = None):
             update_dict)
     return Workflow.from_dict(wf_dict)
 
+def use_cram_vasp(original_wf, cram_vasp_params=None):
+    """
+    For all tasks involving running of vasp, splits the containing firework
+    into two fireworks separated by a CramVasp task that will deactivate
+    the workflow while the CramVasp task hasn't yet completed.
+    """
+    wf_dict = original_wf.to_dict()
+    for idx_fw, idx_t in get_fws_and_tasks(original_wf,
+                                           task_name_constraint="RunVaspCustodian"):
+        new_fw = Firework(wf_dict["fws"][idx_fw]["spec"]["_tasks"][idx:],
+                          spec = wf_dict["fws"][idx_fw]["spec"],
+                          name = wf_dict["fws"][idx_fw]["name"])
+        wf_dict["fws"][idx_fw]["spec"]["_tasks"] = wf_dict["fws"][idx_fw]["spec"]["_tasks"][:idx_t]
+        wf_dict["fws"][idx_fw]["spec"]["_tasks"] += [CramTask(**cram_vasp_params)]

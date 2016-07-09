@@ -161,3 +161,43 @@ class CheckStability(FireTaskBase):
 
         else:
             return FWAction(stored_data=stored_data)
+
+@explicit_serialize
+class CramVasp(FireTaskBase):
+    """
+    Adds the working directory to a database used to construct CRAM
+    VASP jobs
+
+    Required params:
+        validator (CramValidator): a validator passed to the cram database
+            for validation of the cram run
+
+    Optional params:
+        vasp_cmd (string): string corresponding to the executable to be used
+        db_file (string): filename for the db to be used for the cram collection
+        defuse_children (bool): flag to indicate whether fw children should be 
+            defused while the cram_job runs, defaults to True
+    """
+
+    required_params = ["validator"]
+    optional_params = ["vasp_cmd", "db_file", "defuse_children"]
+
+    def run_task(self, fw_spec):
+        db_file = env_chk(self.get('db_file'), fw_spec)
+        db = MMDb.from_db_file(db_file, admin=True)
+        cram = db['cram_jobs']
+        cram_doc = {"working_dir":os.getcwd(),
+                    "fw_id": fw_spec["fw_id"],
+                    "children": None, #TODO FIGURE THIS OUT
+                    "validator": self["validator"].as_dict(),
+                    "state":"READY"
+                    "created_on": datetime.utcnow()
+                   }
+        cram.update({"fw_id": fw_spec["fw_id"]}, cram_doc, upsert=True)
+
+# TODO: Abstract this
+class VaspValidator(MSONable):
+    """
+    This class is 
+    """
+    def __init__(

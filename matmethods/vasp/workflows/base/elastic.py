@@ -164,7 +164,7 @@ def get_wf_elastic_constant(structure, vasp_input_set=None, vasp_cmd="vasp",
     v = vasp_input_set or MPRelaxSet(structure, force_gamma=True)
     if reciprocal_density:
         v.config_dict["KPOINTS"].update(
-            {"reciprocal_density":reciprocal_density})
+            {"reciprocal_density" : reciprocal_density})
         v = DictSet(structure, v.config_dict)
     fws = []
 
