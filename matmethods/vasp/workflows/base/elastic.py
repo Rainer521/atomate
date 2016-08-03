@@ -1,13 +1,16 @@
 # coding: utf-8
 
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
+from __future__ import absolute_import, division, print_function, unicode_literals
+
+"""
+This module defines the elastic workflow
+"""
 
 import json
-import os
 from decimal import Decimal
 
 import numpy as np
+
 from fireworks import FireTaskBase, Firework, FWAction, Workflow
 from fireworks.utilities.fw_serializers import DATETIME_HANDLER
 from fireworks.utilities.fw_utilities import explicit_serialize
@@ -16,6 +19,7 @@ from matmethods.utils.utils import env_chk, get_logger
 from matmethods.vasp.drones import VaspDrone
 from matmethods.vasp.database import MMDb
 from matmethods.vasp.fireworks.core import OptimizeFW, TransmuterFW
+
 from pymatgen.analysis.elasticity.elastic import ElasticTensor
 from pymatgen.analysis.elasticity.strain import Deformation, IndependentStrain
 from pymatgen.analysis.elasticity.stress import Stress
@@ -23,14 +27,6 @@ from pymatgen.analysis.elasticity import reverse_voigt_map
 from pymatgen.io.vasp.outputs import Vasprun
 from pymatgen.io.vasp.sets import MPRelaxSet, DictSet
 from pymatgen import Structure
-from matgendb.util import get_settings
-
-from pymatgen.transformations.standard_transformations import \
-    DeformStructureTransformation
-
-"""
-This module defines the elastic workflow
-"""
 
 __author__ = 'Shyam Dwaraknath, Joseph Montoya'
 __email__ = 'shyamd@lbl.gov, montoyjh@lbl.gov'
@@ -75,8 +71,7 @@ class AnalyzeStressStrainData(FireTaskBase):
         logger.info("PARSING INITIAL OPTIMIZATION DIRECTORY: {}".format(optimize_loc))
         drone = VaspDrone()
         optimize_doc = drone.assimilate(optimize_loc)
-        opt_struct = Structure.from_dict(
-            optimize_doc["calcs_reversed"][0]["output"]["structure"])
+        opt_struct = Structure.from_dict(optimize_doc["calcs_reversed"][0]["output"]["structure"])
         
         deformations = fw_spec['deformations']
         d = {"analysis": {}, "deformation_tasks": {},
@@ -129,8 +124,8 @@ class AnalyzeStressStrainData(FireTaskBase):
             db.collection = db.db["elasticity"]
             db.collection.insert_one(d)
             logger.info("ELASTIC ANALYSIS COMPLETE")
-
         return FWAction()
+
 
 def get_wf_elastic_constant(structure, vasp_input_set=None, vasp_cmd="vasp", 
                             norm_deformations=[-0.01, -0.005, 0.005, 0.01],
@@ -163,15 +158,11 @@ def get_wf_elastic_constant(structure, vasp_input_set=None, vasp_cmd="vasp",
 
     v = vasp_input_set or MPRelaxSet(structure, force_gamma=True)
     if reciprocal_density:
-        v.config_dict["KPOINTS"].update(
-            {"reciprocal_density" : reciprocal_density})
+        v.config_dict["KPOINTS"].update({"reciprocal_density": reciprocal_density})
         v = DictSet(structure, v.config_dict)
-    fws = []
+    fws=[]
 
-    fws.append(OptimizeFW(structure=structure,
-                          vasp_input_set=v,
-                          vasp_cmd=vasp_cmd,
-                          db_file=db_file))
+    fws.append(OptimizeFW(structure=structure, vasp_input_set=v, vasp_cmd=vasp_cmd, db_file=db_file))
 
     deformations = []
     # Generate deformations
@@ -185,37 +176,30 @@ def get_wf_elastic_constant(structure, vasp_input_set=None, vasp_cmd="vasp",
             defo = Deformation.from_index_amount(ind, amount)
             deformations.append(defo)
 
-    def_vasp_params = {"user_incar_settings":{"ISIF":2, "IBRION":2, 
-                                              "NSW":99, "LAECHG":False,
-                                              "LHVAR":False, "ALGO":"Fast",
-                                              "LWAVE":False}}
+    def_vasp_params = {"user_incar_settings": {"ISIF": 2, "IBRION": 2, "NSW": 99, "LAECHG": False,
+                                               "LHVAR": False, "ALGO": "Fast", "LWAVE": False}}
     if reciprocal_density:
-        def_vasp_params.update(
-            {"reciprocal_density":reciprocal_density})
+        def_vasp_params.update({"reciprocal_density":reciprocal_density})
     
     for deformation in deformations:
         fw = TransmuterFW(name="elastic deformation",
                           structure=structure,
                           transformations=['DeformStructureTransformation'],
-                          transformation_params=[
-                              {"deformation": deformation.tolist()}],
+                          transformation_params=[{"deformation": deformation.tolist()}],
                           copy_vasp_outputs=True,
                           db_file=db_file,
                           vasp_cmd=vasp_cmd,
                           parents=fws[0],
-                          vasp_input_params = def_vasp_params
+                          vasp_input_params=def_vasp_params
                          )
-        fw.spec['_tasks'].append(
-            PassStressStrainData(deformation=deformation.tolist()).to_dict())
+        fw.spec['_tasks'].append(PassStressStrainData(deformation=deformation.tolist()).to_dict())
         fws.append(fw)
     
-    fws.append(Firework(AnalyzeStressStrainData(structure=structure, 
-                                                db_file=db_file),
+    fws.append(Firework(AnalyzeStressStrainData(structure=structure, db_file=db_file),
                         name="Analyze Elastic Data", parents=fws[1:],
-                        spec = {"_allow_fizzled_parents":True}))
+                        spec={"_allow_fizzled_parents": True}))
 
-    wfname = "{}:{}".format(structure.composition.reduced_formula,
-                            "elastic constants")
+    wfname = "{}:{}".format(structure.composition.reduced_formula, "elastic constants")
     return Workflow(fws, name=wfname)
 
 if __name__ == "__main__":
