@@ -57,7 +57,9 @@ def get_wf_deformations(structure, deformations, name="deformation", vasp_input_
 
     uis_static = {"ISIF": 2, "ISTART":1}
     if relax_deformed:
+        # Set ionic relaxation parameters
         uis_static["IBRION"] = 2
+        uis_static["NSW"] = 99
 
     # static input set
     vis_static = MPStaticSet(structure, force_gamma=True, lepsilon=lepsilon,
