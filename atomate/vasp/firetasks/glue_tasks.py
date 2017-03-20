@@ -234,6 +234,15 @@ class PassStressStrainData(FiretaskBase):
         strain = Strain.from_deformation(defo)
         defo_dict = {'deformation_matrix': defo, 'strain': strain.tolist(),
                      'stress': stress, 'independent': None}
+        # Find "independent" deformation
+        d_ind = np.where(defo - np.eye(3) > 1e-10)
+        if len(d_ind) == 1:
+            delta = Decimal((defo - np.eye(3))[d_ind][0])
+            # Shorthand is d_X_V, X is voigt index, V is value
+            dtype = "_".join(["d", str(reverse_voigt_map[d_ind][0]),
+                             "{:.0e}".format(delta)])
+            defo_dict['independent'] = dtype
+
         if self['symmops']:
             defo_dict['symmops'] = self['symmops']
 

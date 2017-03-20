@@ -213,7 +213,6 @@ class ElasticTensorToDbTask(FiretaskBase):
     optional_params = ['db_file', "toec"]
 
     def run_task(self, fw_spec):
-
         # Get optimized structure
         # TODO: will this find the correct path if the workflow is rerun from the start?
         optimize_loc = fw_spec["calc_locs"][0]["path"]
@@ -225,7 +224,8 @@ class ElasticTensorToDbTask(FiretaskBase):
         d = {"deformation_tasks": fw_spec["deformation_tasks"], 
              "optimized_structure": opt_struct.as_dict(), 
              "initial_structure": self['structure'].as_dict(), "analysis": {},
-             "formula_pretty":opt_struct.composition.reduced_formula}
+             "formula_pretty":opt_struct.composition.reduced_formula,
+             "optimization_path":optimize_loc}
         if fw_spec.get("tags", None):
             d["tags"] = fw_spec["tags"]
         defo_dicts = fw_spec["deformation_tasks"].values()
@@ -235,24 +235,21 @@ class ElasticTensorToDbTask(FiretaskBase):
             strains.append(Strain(defo_dict["strain"]))
             # Add derived stresses and strains if symmops is present
             for symmop in defo_dict.get("symmops", []):
+                deformations.append(Deformation(defo_dict[
                 stresses.append(Stress(defo_dict["stress"]).transform(symmop))
                 strains.append(Strain(defo_dict["strain"]).transform(symmop))
         stresses = [-0.1*s for s in stresses]
 
         logger.info("ANALYZING STRESS/STRAIN DATA")
         vstrains = np.array([s.voigt for s in strains])
+        # Total fitting method (including additional_defos)
         if np.linalg.matrix_rank(np.array(vstrains)) == 6:
             # Perform Elastic tensor fitting and analysis
+            l = {}
             result = ElasticTensor.from_strain_stress_list(strains, stresses)
-            d["elastic_tensor"] = result.voigt.tolist()
-            kg_average = result.kg_average
-            d.update({"K_Voigt": kg_average[0], "G_Voigt": kg_average[1],
-                      "K_Reuss": kg_average[2], "G_Reuss": kg_average[3],
-                      "K_Voigt_Reuss_Hill": kg_average[4],
-                      "G_Voigt_Reuss_Hill": kg_average[5]})
-            d["universal_anisotropy"] = result.universal_anisotropy
-            d["homogeneous_poisson"] = result.homogeneous_poisson
-
+            l["elastic_tensor"] = result.voigt.tolist()
+            l.update(result.get_structure_property_dict(opt_struct))
+            d["list_fit"] = l
         else:
             raise ValueError("Data matrix rank is less than 6")
 
@@ -262,9 +259,10 @@ class ElasticTensorToDbTask(FiretaskBase):
             toec = {}
             toec['stresses'], toec['strains'] = stresses, strains
             toec['pk_stresses'] = [stress.piola_kirchoff_2(strain.deformation_matrix) 
-                                  for stress, strain in zip(stresses, strains)]
-            toec['eq_stress'] = -0.1*Stress(optimize_doc["calcs_reversed"][0]\
-                                           ["output"]["ionic_steps"][-1]["stress"])
+                                   for stress, strain in zip(stresses, strains)]
+            eq_stress = -0.1*Stress(optimize_doc["calcs_reversed"][0]\
+                                    ["output"]["ionic_steps"][-1]["stress"])
+            toec['eq_stress'] = eq_stress.piola_kirchoff_2(np.eye(3))
             c2, c3 = toec_fit(strains, toec["pk_stresses"], eq_stress = toec["eq_stress"])
             toec["C2_raw"] = c2.voigt.tolist()
             toec["C3_raw"] = c3.voigt.tolist()
